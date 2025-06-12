@@ -49,6 +49,7 @@ This package automatically detects your system architecture (x64, x86, ARM64) an
 The package is maintained independently and is not officially supported by Common Fate.
 ]]></description>
     <releaseNotes>https://github.com/fwdcloudsec/granted/releases/tag/v0.38.0</releaseNotes>
+    <downloadUrl>https://github.com/fwdcloudsec/granted/releases/download/v0.38.0/granted_0.38.0_windows_x86_64.zip</downloadUrl>
   </metadata>
   <files>
     <file src="tools\**" target="tools" />

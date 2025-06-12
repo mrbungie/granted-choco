@@ -67,7 +67,7 @@ jobs:
             exit 1
           }
           
-          if ($content -match '/v[\d\.]+/') {
+          if ($content -match 'v[\d\.]+') {
             Write-Host "✅ nuspec download URL versioning found"
           } else {
             Write-Error "❌ nuspec download URL versioning not found"
