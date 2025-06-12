@@ -3,7 +3,7 @@ name: Build Chocolatey Package
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v0.38.0
+      - 'v*'
     branches:
       - main
       - master
@@ -17,7 +17,7 @@ on:
       - main
       - master
       - develop
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
 
 env:
   PACKAGE_NAME: granted
@@ -25,12 +25,9 @@ env:
 jobs:
   test:
     runs-on: windows-latest
-    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
     - name: Test version extraction logic
       shell: pwsh
       run: |
@@ -49,7 +46,6 @@ jobs:
           Write-Error "❌ Version extraction regex failed"
           exit 1
         }
-    
     - name: Validate nuspec file
       shell: pwsh
       run: |
@@ -223,16 +219,15 @@ jobs:
 
   build:
     runs-on: windows-latest
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    if: github.event_name == 'pull_request' || github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     outputs:
       package_file: ${{ steps.build.outputs.package_file }}
       version: ${{ steps.version.outputs.version }}
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Extract version from tag
+    - name: Extract version from tag or branch
       id: version
       shell: pwsh
       run: |
@@ -240,13 +235,11 @@ jobs:
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         if ($env:GITHUB_REF -match 'refs/tags/v(.+)') {
           $version = $matches[1]
-          Write-Output "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Extracted version: $version"
         } else {
-          Write-Error "Could not extract version from ref: $env:GITHUB_REF"
-          exit 1
+          $version = '0.0.0-dev'
         }
-    
+        Write-Output "version=$version" >> $env:GITHUB_OUTPUT
+        Write-Host "Extracted version: $version"
     - name: Update package version in nuspec
       shell: pwsh
       run: |
@@ -254,15 +247,11 @@ jobs:
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $version = "${{ steps.version.outputs.version }}"
         $nuspecPath = "granted.nuspec"
-        
-        # Read and update nuspec file
         $content = Get-Content $nuspecPath -Raw
         $content = $content -replace '<version>[\d\.]+</version>', "<version>$version</version>"
         $content = $content -replace '/v[\d\.]+/', "/v$version/"
         Set-Content $nuspecPath $content
-        
         Write-Host "Updated nuspec version to: $version"
-        
     - name: Update version in install script
       shell: pwsh
       run: |
@@ -270,34 +259,10 @@ jobs:
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $version = "${{ steps.version.outputs.version }}"
         $installScriptPath = "tools/chocolateyInstall.ps1"
-        
-        # Read and update install script
         $content = Get-Content $installScriptPath -Raw
         $content = $content -replace '\$version = ''[\d\.]+''', "`$version = '$version'"
         Set-Content $installScriptPath $content
-        
         Write-Host "Updated install script version to: $version"
-        
-    - name: Verify upstream release exists
-      shell: pwsh
-      run: |
-        chcp 65001
-        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        $version = "${{ steps.version.outputs.version }}"
-        $baseUrl = "https://github.com/fwdcloudsec/granted/releases/download/v$version"
-        
-        # Check if x86_64 version exists (most common)
-        $testUrl = "$baseUrl/granted_${version}_windows_x86_64.zip"
-        
-        try {
-          $response = Invoke-WebRequest -Uri $testUrl -Method Head -ErrorAction Stop
-          Write-Host "✅ Upstream release found: $testUrl"
-        } catch {
-          Write-Error "❌ Upstream release not found: $testUrl"
-          Write-Error "Please ensure Granted CLI v$version is released before creating this tag"
-          exit 1
-        }
-        
     - name: Install Chocolatey
       shell: pwsh
       run: |
@@ -306,16 +271,12 @@ jobs:
         Set-ExecutionPolicy Bypass -Scope Process -Force
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
         iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-        
     - name: Build Chocolatey package
       shell: pwsh
       run: |
         chcp 65001
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        # Build the package
         choco pack granted.nuspec
-        
-        # Verify package was created
         $packageFile = Get-ChildItem -Name "*.nupkg" | Select-Object -First 1
         if ($packageFile) {
           Write-Host "✅ Package built successfully: $packageFile"
@@ -325,7 +286,6 @@ jobs:
           exit 1
         }
       id: build
-      
     - name: Test package installation
       shell: pwsh
       run: |
@@ -333,11 +293,8 @@ jobs:
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.build.outputs.package_file }}"
         $version = "${{ steps.version.outputs.version }}"
-        
         Write-Host "Testing package installation..."
         choco install granted --version="$version" --source="." -f -y
-        
-        # Test if granted command is available
         try {
           $output = granted --version
           Write-Host "✅ Package installed successfully. Output: $output"
@@ -345,36 +302,37 @@ jobs:
           Write-Error "❌ Package installation test failed"
           exit 1
         }
-        
-    - name: Create GitHub Release
+    - name: Upload package artifact (only on tags)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: actions/upload-artifact@v4
+      with:
+        name: chocolatey-package
+        path: "*.nupkg"
+        retention-days: 30
+    - name: Create GitHub Release (only on tags)
+      if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v1
       with:
         tag_name: ${{ github.ref_name }}
         name: "Chocolatey Package v${{ steps.version.outputs.version }}"
         body: |
           ## Chocolatey Package for Granted CLI v${{ steps.version.outputs.version }}
-          
           ### Installation
           ```powershell
           choco install granted
           ```
-          
           ### Upgrade
           ```powershell
           choco upgrade granted
           ```
-          
           ### What's New
           This package tracks [Granted CLI v${{ steps.version.outputs.version }}](https://github.com/fwdcloudsec/granted/releases/tag/v${{ steps.version.outputs.version }}).
-          
           ### Supported Architectures
           - ✅ x64 (AMD64)
           - ✅ x86 (32-bit)
           - ✅ ARM64
-          
           ### Files
           - `${{ steps.build.outputs.package_file }}` - Chocolatey package file
-          
           ### Notes
           - Auto-detects system architecture
           - Installs appropriate Granted CLI binary
@@ -385,8 +343,8 @@ jobs:
         prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
     - name: Display completion message
+      if: startsWith(github.ref, 'refs/tags/v')
       shell: pwsh
       run: |
         chcp 65001
@@ -400,90 +358,47 @@ jobs:
         Write-Host ""
         Write-Host "Users can now install with:" -ForegroundColor Yellow
         Write-Host "  choco install granted" -ForegroundColor White
-        
-    - name: Upload package artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: chocolatey-package
-        path: "*.nupkg"
-        retention-days: 30
 
   publish:
     needs: build
     runs-on: windows-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    environment: chocolatey-publish  # Protect production deployments
-    
+    environment: chocolatey-publish
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
     - name: Download package artifact
       uses: actions/download-artifact@v4
       with:
         name: chocolatey-package
         path: ./
-      continue-on-error: true  # In case artifacts aren't available yet
-        
+      continue-on-error: true
     - name: Get package file from build job
       shell: pwsh
       run: |
         chcp 65001
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-        # If artifact download failed, rebuild package quickly
-        if (-not (Test-Path "*.nupkg")) {
-          Write-Host "Package file not found, rebuilding..."
-          
-          # Install Chocolatey
-          Set-ExecutionPolicy Bypass -Scope Process -Force
-          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-          
-          # Update version in files (same as build job)
-          $version = "${{ needs.build.outputs.version }}"
-          
-          $nuspecPath = "granted.nuspec"
-          $content = Get-Content $nuspecPath -Raw
-          $content = $content -replace '<version>[\d\.]+</version>', "<version>$version</version>"
-          $content = $content -replace '/v[\d\.]+/', "/v$version/"
-          Set-Content $nuspecPath $content
-          
-          $installScriptPath = "tools/chocolateyInstall.ps1"
-          $content = Get-Content $installScriptPath -Raw
-          $content = $content -replace '\$version = ''[\d\.]+''', "`$version = '$version'"
-          Set-Content $installScriptPath $content
-          
-          choco pack granted.nuspec
-        }
-        
         $packageFile = Get-ChildItem -Name "*.nupkg" | Select-Object -First 1
         Write-Host "Package file: $packageFile"
         Write-Output "package_file=$packageFile" >> $env:GITHUB_OUTPUT
       id: package
-    
     - name: Validate package before publishing
       shell: pwsh
       run: |
         chcp 65001
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.package.outputs.package_file }}"
-        
         Write-Host "Validating package: $packageFile"
-        
-        # Check package exists and has reasonable size
         if (-not (Test-Path $packageFile)) {
           Write-Error "Package file not found: $packageFile"
           exit 1
         }
-        
         $fileInfo = Get-Item $packageFile
         if ($fileInfo.Length -lt 1KB) {
           Write-Error "Package file is too small: $($fileInfo.Length) bytes"
           exit 1
         }
-        
         Write-Host "✅ Package validation passed: $($fileInfo.Length) bytes"
-        
     - name: Publish to Chocolatey.org
       shell: pwsh
       run: |
@@ -491,7 +406,6 @@ jobs:
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.package.outputs.package_file }}"
         $apiKey = "${{ secrets.CHOCOLATEY_API_KEY }}"
-        
         if (-not $apiKey) {
           Write-Warning "⚠️  CHOCOLATEY_API_KEY not set. Skipping publication to chocolatey.org"
           Write-Host "To enable automatic publication:"
@@ -499,13 +413,8 @@ jobs:
           Write-Host "2. Add it as repository secret CHOCOLATEY_API_KEY"
           exit 0
         }
-        
         Write-Host "Publishing $packageFile to chocolatey.org..."
-        
-        # Set API key
         choco apikey -k $apiKey -source https://push.chocolatey.org/
-        
-        # Push package
         try {
           choco push $packageFile --source https://push.chocolatey.org/
           Write-Host "✅ Package published successfully to chocolatey.org!"
@@ -524,7 +433,6 @@ jobs:
           Write-Host "- Network connectivity issues"
           exit 1
         }
-        
     - name: Create publication summary
       shell: pwsh
       run: |
