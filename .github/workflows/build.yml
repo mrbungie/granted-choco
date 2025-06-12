@@ -4,14 +4,225 @@ on:
   push:
     tags:
       - 'v*'  # Trigger on version tags like v0.38.0
+    branches:
+      - main
+      - master
+      - develop
+      - 'feature/*'
+      - 'fix/*'
+      - 'chore/*'
+  pull_request:
+    branches:
+      - main
+      - master
+      - develop
   workflow_dispatch:  # Allow manual triggering
 
 env:
   PACKAGE_NAME: granted
 
 jobs:
+  test:
+    runs-on: windows-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && !startsWith(github.ref, 'refs/tags/'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Test version extraction logic
+      shell: pwsh
+      run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        # Test version extraction with a mock tag
+        $mockRef = "refs/tags/v1.2.3"
+        if ($mockRef -match 'refs/tags/v(.+)') {
+          $version = $matches[1]
+          Write-Host "✅ Version extraction works: $version"
+          if ($version -ne "1.2.3") {
+            Write-Error "❌ Version extraction failed. Expected '1.2.3', got '$version'"
+            exit 1
+          }
+        } else {
+          Write-Error "❌ Version extraction regex failed"
+          exit 1
+        }
+    
+    - name: Validate nuspec file
+      shell: pwsh
+      run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        $nuspecPath = "granted.nuspec"
+        
+        if (-not (Test-Path $nuspecPath)) {
+          Write-Error "❌ nuspec file not found: $nuspecPath"
+          exit 1
+        }
+        
+        # Test that we can read and parse the nuspec
+        try {
+          $content = Get-Content $nuspecPath -Raw
+          if ($content -match '<version>[\d\.]+</version>') {
+            Write-Host "✅ nuspec version tag found and properly formatted"
+          } else {
+            Write-Error "❌ nuspec version tag not found or malformed"
+            exit 1
+          }
+          
+          if ($content -match 'v[\d\.]+') {
+            Write-Host "✅ nuspec download URL versioning found"
+          } else {
+            Write-Error "❌ nuspec download URL versioning not found"
+            exit 1
+          }
+        } catch {
+          Write-Error "❌ Failed to read nuspec file: $($_.Exception.Message)"
+          exit 1
+        }
+        
+    - name: Validate install script
+      shell: pwsh
+      run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        $installScriptPath = "tools/chocolateyInstall.ps1"
+        
+        if (-not (Test-Path $installScriptPath)) {
+          Write-Error "❌ Install script not found: $installScriptPath"
+          exit 1
+        }
+        
+        # Test that we can read and parse the install script
+        try {
+          $content = Get-Content $installScriptPath -Raw
+          if ($content -match '\$version = ''[\d\.]+''') {
+            Write-Host "✅ Install script version variable found and properly formatted"
+          } else {
+            Write-Error "❌ Install script version variable not found or malformed"
+            exit 1
+          }
+        } catch {
+          Write-Error "❌ Failed to read install script: $($_.Exception.Message)"
+          exit 1
+        }
+        
+    - name: Test file updates (dry run)
+      shell: pwsh
+      run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        $testVersion = "9.9.9"
+        $nuspecPath = "granted.nuspec"
+        $installScriptPath = "tools/chocolateyInstall.ps1"
+        
+        Write-Host "Testing version update logic with version: $testVersion"
+        
+        # Backup original files
+        Copy-Item $nuspecPath "$nuspecPath.backup"
+        Copy-Item $installScriptPath "$installScriptPath.backup"
+        
+        try {
+          # Test nuspec update
+          $content = Get-Content $nuspecPath -Raw
+          $content = $content -replace '<version>[\d\.]+</version>', "<version>$testVersion</version>"
+          $content = $content -replace '/v[\d\.]+/', "/v$testVersion/"
+          Set-Content $nuspecPath $content
+          
+          # Verify nuspec update
+          $updatedContent = Get-Content $nuspecPath -Raw
+          if ($updatedContent -match "<version>$testVersion</version>") {
+            Write-Host "✅ nuspec version update successful"
+          } else {
+            Write-Error "❌ nuspec version update failed"
+            exit 1
+          }
+          
+          # Test install script update
+          $content = Get-Content $installScriptPath -Raw
+          $content = $content -replace '\$version = ''[\d\.]+''', "`$version = '$testVersion'"
+          Set-Content $installScriptPath $content
+          
+          # Verify install script update
+          $updatedContent = Get-Content $installScriptPath -Raw
+          if ($updatedContent -match "\`$version = '$testVersion'") {
+            Write-Host "✅ Install script version update successful"
+          } else {
+            Write-Error "❌ Install script version update failed"
+            exit 1
+          }
+          
+        } finally {
+          # Restore original files
+          Move-Item "$nuspecPath.backup" $nuspecPath -Force
+          Move-Item "$installScriptPath.backup" $installScriptPath -Force
+          Write-Host "✅ Original files restored"
+        }
+        
+    - name: Test upstream URL format
+      shell: pwsh
+      run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        $testVersion = "0.38.0"  # Use a known existing version
+        $baseUrl = "https://github.com/fwdcloudsec/granted/releases/download/v$testVersion"
+        $testUrl = "$baseUrl/granted_${testVersion}_windows_x86_64.zip"
+        
+        Write-Host "Testing URL format: $testUrl"
+        
+        try {
+          $response = Invoke-WebRequest -Uri $testUrl -Method Head -ErrorAction Stop
+          Write-Host "✅ URL format is correct and upstream release exists"
+        } catch {
+          # For testing, we just verify the URL format is correct
+          if ($testUrl -match "https://github\.com/fwdcloudsec/granted/releases/download/v[\d\.]+/granted_[\d\.]+_windows_x86_64\.zip") {
+            Write-Host "✅ URL format is correct (upstream availability not verified in tests)"
+          } else {
+            Write-Error "❌ URL format is incorrect"
+            exit 1
+          }
+        }
+        
+    - name: Validate PowerShell syntax
+      shell: pwsh
+      run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        $installScriptPath = "tools/chocolateyInstall.ps1"
+        
+        Write-Host "Validating PowerShell syntax..."
+        
+        # Test PowerShell syntax by parsing the script
+        try {
+          $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content $installScriptPath -Raw), [ref]$null)
+          Write-Host "✅ PowerShell syntax is valid"
+        } catch {
+          Write-Error "❌ PowerShell syntax error: $($_.Exception.Message)"
+          exit 1
+        }
+        
+    - name: Display test summary
+      shell: pwsh
+      run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+        Write-Host ""
+        Write-Host "🧪 All tests passed! ✅" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Validated:" -ForegroundColor Cyan
+        Write-Host "  ✅ Version extraction logic" -ForegroundColor White
+        Write-Host "  ✅ nuspec file format" -ForegroundColor White  
+        Write-Host "  ✅ Install script format" -ForegroundColor White
+        Write-Host "  ✅ File update logic" -ForegroundColor White
+        Write-Host "  ✅ Upstream URL format" -ForegroundColor White
+        Write-Host "  ✅ PowerShell syntax" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Ready for tag-based build and publish! 🚀" -ForegroundColor Yellow
+
   build:
     runs-on: windows-latest
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     outputs:
       package_file: ${{ steps.build.outputs.package_file }}
       version: ${{ steps.version.outputs.version }}
@@ -22,8 +233,10 @@ jobs:
       
     - name: Extract version from tag
       id: version
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         if ($env:GITHUB_REF -match 'refs/tags/v(.+)') {
           $version = $matches[1]
           Write-Output "version=$version" >> $env:GITHUB_OUTPUT
@@ -34,8 +247,10 @@ jobs:
         }
     
     - name: Update package version in nuspec
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $version = "${{ steps.version.outputs.version }}"
         $nuspecPath = "granted.nuspec"
         
@@ -48,8 +263,10 @@ jobs:
         Write-Host "Updated nuspec version to: $version"
         
     - name: Update version in install script
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $version = "${{ steps.version.outputs.version }}"
         $installScriptPath = "tools/chocolateyInstall.ps1"
         
@@ -61,8 +278,10 @@ jobs:
         Write-Host "Updated install script version to: $version"
         
     - name: Verify upstream release exists
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $version = "${{ steps.version.outputs.version }}"
         $baseUrl = "https://github.com/fwdcloudsec/granted/releases/download/v$version"
         
@@ -79,15 +298,19 @@ jobs:
         }
         
     - name: Install Chocolatey
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         Set-ExecutionPolicy Bypass -Scope Process -Force
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
         iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
         
     - name: Build Chocolatey package
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         # Build the package
         choco pack granted.nuspec
         
@@ -103,8 +326,10 @@ jobs:
       id: build
       
     - name: Test package installation
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.build.outputs.package_file }}"
         $version = "${{ steps.version.outputs.version }}"
         
@@ -161,8 +386,10 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Display completion message
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         Write-Host ""
         Write-Host "🎉 Build completed successfully!" -ForegroundColor Green
         Write-Host ""
@@ -198,8 +425,10 @@ jobs:
       continue-on-error: true  # In case artifacts aren't available yet
         
     - name: Get package file from build job
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         # If artifact download failed, rebuild package quickly
         if (-not (Test-Path "*.nupkg")) {
           Write-Host "Package file not found, rebuilding..."
@@ -232,8 +461,10 @@ jobs:
       id: package
     
     - name: Validate package before publishing
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.package.outputs.package_file }}"
         
         Write-Host "Validating package: $packageFile"
@@ -253,8 +484,10 @@ jobs:
         Write-Host "✅ Package validation passed: $($fileInfo.Length) bytes"
         
     - name: Publish to Chocolatey.org
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.package.outputs.package_file }}"
         $apiKey = "${{ secrets.CHOCOLATEY_API_KEY }}"
         
@@ -292,8 +525,10 @@ jobs:
         }
         
     - name: Create publication summary
-      shell: powershell
+      shell: pwsh
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         Write-Host ""
         Write-Host "🎊 PUBLICATION COMPLETE! 🎊" -ForegroundColor Green
         Write-Host "================================" -ForegroundColor Green

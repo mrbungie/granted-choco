@@ -28,7 +28,7 @@ This package automatically detects your system architecture and installs the app
 ## 📦 Package Information
 
 - **Package ID**: `granted`
-- **Maintainer**: [Your Name]
+- **Maintainer**: Germán Oviedo
 - **Source**: [Common Fate/Granted](https://github.com/fwdcloudsec/granted)
 - **License**: MIT
 - **Tags**: aws, cli, security, access, iam, assume-role, cloud, devops
