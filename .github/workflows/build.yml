@@ -50,6 +50,7 @@ jobs:
     - name: Validate nuspec file
       shell: powershell
       run: |
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $nuspecPath = "granted.nuspec"
         
         if (-not (Test-Path $nuspecPath)) {
