@@ -71,10 +71,10 @@ jobs:
             exit 1
           }
           
-          if ($content -match 'v[\d\.]+') {
-            Write-Host "✅ nuspec download URL versioning found"
+          if ($content -match '<releaseNotes>https://github.com/fwdcloudsec/granted/releases/tag/v[\d\.]+</releaseNotes>') {
+            Write-Host "✅ nuspec releaseNotes URL versioning found"
           } else {
-            Write-Error "❌ nuspec download URL versioning not found"
+            Write-Error "❌ nuspec releaseNotes URL versioning not found"
             exit 1
           }
         } catch {
