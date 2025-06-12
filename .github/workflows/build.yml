@@ -280,6 +280,7 @@ jobs:
   publish:
     name: "🚀 Publish"
     runs-on: windows-latest
+    needs: build
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     environment: chocolatey-publish
     steps:
