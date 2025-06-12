@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>granted</id>
+    <version>0.38.0</version>
+    <packageSourceUrl>https://github.com/mrbungie/granted-choco</packageSourceUrl>
+    <owners>mrbungie</owners>
+    <title>Granted CLI</title>
+    <authors>Common Fate</authors>
+    <projectUrl>https://github.com/fwdcloudsec/granted</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/fwdcloudsec/granted/main/docs/granted.png</iconUrl>
+    <copyright>2024 Common Fate</copyright>
+    <licenseUrl>https://github.com/fwdcloudsec/granted/blob/main/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/fwdcloudsec/granted</projectSourceUrl>
+    <docsUrl>https://docs.commonfate.io/granted/</docsUrl>
+    <bugTrackerUrl>https://github.com/fwdcloudsec/granted/issues</bugTrackerUrl>
+    <tags>aws cli security access iam assume-role cloud devops</tags>
+    <summary>Granted is a command line interface (CLI) application which simplifies access to cloud roles and allows multiple cloud accounts to be opened in your web browser simultaneously.</summary>
+    <description><![CDATA[
+# Granted CLI
+
+Granted is a command line interface (CLI) application which simplifies access to cloud roles and allows multiple cloud accounts to be opened in your web browser simultaneously.
+
+## Features
+
+- **Simplified AWS SSO**: Easily assume AWS roles with simplified commands
+- **Multiple Browser Sessions**: Open multiple cloud accounts simultaneously in different browser profiles  
+- **Profile Management**: Manage AWS CLI profiles with ease
+- **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Security Focused**: Built with security best practices in mind
+
+## Usage
+
+After installation, you can use Granted with commands like:
+
+```
+assume <profile-name>
+assume -c <profile-name> # Web browser will open in a new tab
+granted <subcommand>
+```
+
+For complete documentation, visit: https://docs.commonfate.io/introduction
+
+## Notes
+
+This package automatically detects your system architecture (x64, x86, ARM64) and installs the appropriate binary.
+
+The package is maintained independently and is not officially supported by Common Fate.
+]]></description>
+    <releaseNotes>https://github.com/fwdcloudsec/granted/releases/tag/v0.38.0</releaseNotes>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package> 

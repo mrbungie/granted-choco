@@ -1,0 +1,59 @@
+# Chocolatey package build artifacts
+*.nupkg
+
+# PowerShell temporary files
+*.ps1.orig
+
+# Visual Studio Code
+.vscode/
+
+# Windows thumbnail cache files
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+
+# Dump file
+*.stackdump
+
+# Folder config file
+[Dd]esktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+
+# Windows shortcuts
+*.lnk
+
+# Temporary test installations
+temp/
+test-install/
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# IDE files
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Build directories
+build/
+dist/
+out/ 
