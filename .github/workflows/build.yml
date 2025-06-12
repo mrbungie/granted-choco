@@ -86,10 +86,16 @@ jobs:
           }
           try {
             $content = Get-Content $installScriptPath -Raw
-            if ($content -match '\$version = ''[\d\.]+''') {
-              Write-Host "✅ Install script version variable found and properly formatted"
+            if ($content -match '\$packageName = ''granted''') {
+              Write-Host "✅ Install script packageName variable found"
             } else {
-              Write-Error "❌ Install script version variable not found or malformed"
+              Write-Error "❌ Install script packageName variable not found or malformed"
+              exit 1
+            }
+            if ($content -match '\$version = \$env:ChocolateyPackageVersion') {
+              Write-Host "✅ Install script uses ChocolateyPackageVersion"
+            } else {
+              Write-Error "❌ Install script does not use ChocolateyPackageVersion for version"
               exit 1
             }
           } catch {
@@ -103,10 +109,8 @@ jobs:
           [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
           $testVersion = "9.9.9"
           $nuspecPath = "granted.nuspec"
-          $installScriptPath = "tools/chocolateyInstall.ps1"
           Write-Host "Testing version update logic with version: $testVersion"
           Copy-Item $nuspecPath "$nuspecPath.backup"
-          Copy-Item $installScriptPath "$installScriptPath.backup"
           try {
             $content = Get-Content $nuspecPath -Raw
             $content = $content -replace '<version>[\d\.]+</version>', "<version>$testVersion</version>"
@@ -119,20 +123,9 @@ jobs:
               Write-Error "❌ nuspec version update failed"
               exit 1
             }
-            $content = Get-Content $installScriptPath -Raw
-            $content = $content -replace '\$version = ''[\d\.]+''', "`$version = '$testVersion'"
-            Set-Content $installScriptPath $content
-            $updatedContent = Get-Content $installScriptPath -Raw
-            if ($updatedContent -match "`$version = '$testVersion'") {
-              Write-Host "✅ Install script version update successful"
-            } else {
-              Write-Error "❌ Install script version update failed"
-              exit 1
-            }
           } finally {
             Move-Item "$nuspecPath.backup" $nuspecPath -Force
-            Move-Item "$installScriptPath.backup" $installScriptPath -Force
-            Write-Host "✅ Original files restored"
+            Write-Host "✅ Original nuspec restored"
           }
       - name: Test upstream URL format
         shell: pwsh
@@ -220,12 +213,7 @@ jobs:
       - name: Update version in install script
         shell: pwsh
         run: |
-          chcp 65001
-          $version = "${{ steps.version.outputs.version }}"
-          $installScriptPath = "tools/chocolateyInstall.ps1"
-          $content = Get-Content $installScriptPath -Raw
-          $content = $content -replace '\$version = ''[\d\.]+''', "`$version = '$version'"
-          Set-Content $installScriptPath $content
+          echo "No version update needed in install script. Version is injected by Chocolatey."
       - name: Install Chocolatey
         shell: pwsh
         run: |
@@ -269,12 +257,11 @@ jobs:
     name: "🚀 Publish"
     runs-on: windows-latest
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build
     environment: chocolatey-publish
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Download package artifact
+      - name: Download package artifact from build job
         uses: actions/download-artifact@v4
         with:
           name: chocolatey-package

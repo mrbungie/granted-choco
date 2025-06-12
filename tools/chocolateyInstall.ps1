@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 # Package information
 $packageName = 'granted'
-$version = '0.38.0'
+$version = $env:ChocolateyPackageVersion
 $toolsDir = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
 
 # Architecture detection
