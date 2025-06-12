@@ -33,6 +33,8 @@ jobs:
     - name: Test version extraction logic
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         # Test version extraction with a mock tag
         $mockRef = "refs/tags/v1.2.3"
         if ($mockRef -match 'refs/tags/v(.+)') {
@@ -50,6 +52,7 @@ jobs:
     - name: Validate nuspec file
       shell: powershell
       run: |
+        chcp 65001
         [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $nuspecPath = "granted.nuspec"
         
@@ -82,6 +85,8 @@ jobs:
     - name: Validate install script
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $installScriptPath = "tools/chocolateyInstall.ps1"
         
         if (-not (Test-Path $installScriptPath)) {
@@ -106,6 +111,8 @@ jobs:
     - name: Test file updates (dry run)
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $testVersion = "9.9.9"
         $nuspecPath = "granted.nuspec"
         $installScriptPath = "tools/chocolateyInstall.ps1"
@@ -156,6 +163,8 @@ jobs:
     - name: Test upstream URL format
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $testVersion = "0.38.0"  # Use a known existing version
         $baseUrl = "https://github.com/fwdcloudsec/granted/releases/download/v$testVersion"
         $testUrl = "$baseUrl/granted_${testVersion}_windows_x86_64.zip"
@@ -178,6 +187,8 @@ jobs:
     - name: Validate PowerShell syntax
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $installScriptPath = "tools/chocolateyInstall.ps1"
         
         Write-Host "Validating PowerShell syntax..."
@@ -194,6 +205,8 @@ jobs:
     - name: Display test summary
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         Write-Host ""
         Write-Host "🧪 All tests passed! ✅" -ForegroundColor Green
         Write-Host ""
@@ -222,6 +235,8 @@ jobs:
       id: version
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         if ($env:GITHUB_REF -match 'refs/tags/v(.+)') {
           $version = $matches[1]
           Write-Output "version=$version" >> $env:GITHUB_OUTPUT
@@ -234,6 +249,8 @@ jobs:
     - name: Update package version in nuspec
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $version = "${{ steps.version.outputs.version }}"
         $nuspecPath = "granted.nuspec"
         
@@ -248,6 +265,8 @@ jobs:
     - name: Update version in install script
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $version = "${{ steps.version.outputs.version }}"
         $installScriptPath = "tools/chocolateyInstall.ps1"
         
@@ -261,6 +280,8 @@ jobs:
     - name: Verify upstream release exists
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $version = "${{ steps.version.outputs.version }}"
         $baseUrl = "https://github.com/fwdcloudsec/granted/releases/download/v$version"
         
@@ -279,6 +300,8 @@ jobs:
     - name: Install Chocolatey
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         Set-ExecutionPolicy Bypass -Scope Process -Force
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
         iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
@@ -286,6 +309,8 @@ jobs:
     - name: Build Chocolatey package
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         # Build the package
         choco pack granted.nuspec
         
@@ -303,6 +328,8 @@ jobs:
     - name: Test package installation
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.build.outputs.package_file }}"
         $version = "${{ steps.version.outputs.version }}"
         
@@ -361,6 +388,8 @@ jobs:
     - name: Display completion message
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         Write-Host ""
         Write-Host "🎉 Build completed successfully!" -ForegroundColor Green
         Write-Host ""
@@ -398,6 +427,8 @@ jobs:
     - name: Get package file from build job
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         # If artifact download failed, rebuild package quickly
         if (-not (Test-Path "*.nupkg")) {
           Write-Host "Package file not found, rebuilding..."
@@ -432,6 +463,8 @@ jobs:
     - name: Validate package before publishing
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.package.outputs.package_file }}"
         
         Write-Host "Validating package: $packageFile"
@@ -453,6 +486,8 @@ jobs:
     - name: Publish to Chocolatey.org
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         $packageFile = "${{ steps.package.outputs.package_file }}"
         $apiKey = "${{ secrets.CHOCOLATEY_API_KEY }}"
         
@@ -492,6 +527,8 @@ jobs:
     - name: Create publication summary
       shell: powershell
       run: |
+        chcp 65001
+        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
         Write-Host ""
         Write-Host "🎊 PUBLICATION COMPLETE! 🎊" -ForegroundColor Green
         Write-Host "================================" -ForegroundColor Green
