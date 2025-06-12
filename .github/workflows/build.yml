@@ -251,6 +251,26 @@ jobs:
             Write-Error "❌ Package installation test failed"
             exit 1
           }
+      - name: Test assume --version
+        shell: pwsh
+        run: |
+          chcp 65001
+          try {
+            assume --version
+          } catch {
+            Write-Error "❌ 'assume --version' failed"
+            exit 1
+          }
+      - name: Test granted --version
+        shell: pwsh
+        run: |
+          chcp 65001
+          try {
+            granted --version
+          } catch {
+            Write-Error "❌ 'granted --version' failed"
+            exit 1
+          }
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
