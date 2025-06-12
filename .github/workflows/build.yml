@@ -188,18 +188,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Extract version from tag or branch
+      - name: Extract version from nuspec releaseNotes
         id: version
         shell: pwsh
         run: |
           chcp 65001
-          if ($env:GITHUB_REF -match 'refs/tags/v(.+)') {
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $nuspecPath = "granted.nuspec"
+          $content = Get-Content $nuspecPath -Raw
+          if ($content -match '<releaseNotes>https://github.com/fwdcloudsec/granted/releases/tag/v([\d\.]+)</releaseNotes>') {
             $version = $matches[1]
+            Write-Host "Extracted version from releaseNotes: $version"
+            Write-Output "version=$version" >> $env:GITHUB_OUTPUT
           } else {
-            $version = '0.0.0-dev'
+            Write-Error "❌ Could not extract version from releaseNotes in nuspec"
+            exit 1
           }
-          Write-Output "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Host "Extracted version: $version"
       - name: Update package version in nuspec
         shell: pwsh
         run: |
